@@ -1,9 +1,11 @@
 import { connectMongo } from "@/lib/database/mongoose";
 import { metersToKm } from "@/lib/utils/units";
 import { Activity } from "@/models";
-import { getRecoveryOverview } from "@/modules/recovery/service";
+import { getHrZoneIntelligence } from "@/modules/hr-zones/service";
 import { getLatestBaselines } from "@/modules/personal-intelligence/baselines";
 import { evaluateWeeklyVolume } from "@/modules/recommendations/rules";
+import { getRecoveryOverview } from "@/modules/recovery/service";
+import { getTrainingLoad } from "@/modules/training-load/service";
 
 export type WorkoutType =
   | "easy"
@@ -60,7 +62,7 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 18 * 60 * 60 * 1000);
 
-  const [recovery, baselines, currentKm, previousKm, recentRuns] =
+  const [recovery, baselines, currentKm, previousKm, recentRuns, load, zones] =
     await Promise.all([
       getRecoveryOverview(),
       getLatestBaselines(),
@@ -70,6 +72,8 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
         .sort({ startedAt: -1 })
         .limit(14)
         .lean(),
+      getTrainingLoad({ days: 28 }),
+      getHrZoneIntelligence({ days: 14 }),
     ]);
 
   const volume = evaluateWeeklyVolume(currentKm, previousKm, 20);
@@ -85,6 +89,8 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
           86400000
       )
     : 99;
+  const formScore = load.available ? load.impulseResponse.formScore : null;
+  const zone2Percent = zones.available ? zones.zone2?.percent ?? null : null;
 
   const evidence: DailySuggestion["evidence"] = [
     { metric: "recoveryStatus", value: recovery.status },
@@ -93,6 +99,16 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
     { metric: "daysSinceLastRun", value: daysSinceLast, unit: "days" },
     { metric: "ranToday", value: ranToday ? "yes" : "no" },
   ];
+  if (formScore != null) {
+    evidence.push({ metric: "formScore", value: Number(formScore.toFixed(1)) });
+  }
+  if (zone2Percent != null) {
+    evidence.push({
+      metric: "zone2Percent14d",
+      value: zone2Percent,
+      unit: "%",
+    });
+  }
 
   if (weeklyBaseline) {
     evidence.push({
@@ -109,7 +125,7 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
   ) {
     return {
       ruleId: "COACH-REC-001",
-      ruleVersion: "1.0.0",
+      ruleVersion: "2.0.0",
       workoutType: recovery.status === "easier_session" ? "rest" : "recovery",
       title:
         recovery.status === "easier_session"
@@ -135,10 +151,52 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
     };
   }
 
+  // Coach v2: Banister form deeply negative → protect.
+  if (formScore != null && formScore < -12) {
+    return {
+      ruleId: "COACH-LOAD-001",
+      ruleVersion: "2.0.0",
+      workoutType: "recovery",
+      title: "Load says ease off",
+      description:
+        "STRIDE form (chronic − acute) is quite negative. Keep today easy or rest so fatigue can settle.",
+      suggestedDistanceKm: { min: 3, max: 6 },
+      suggestedDurationMinutes: { min: 20, max: 40 },
+      suggestedZone: "Zone 2",
+      severity: "medium",
+      dataSufficiency: "sufficient",
+      confidence: "medium",
+      evidence,
+      generatedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  // Coach v2: thin Zone 2 share → aerobic focus.
+  if (zone2Percent != null && zone2Percent < 35 && zones.eligibleActivityCount >= 1) {
+    return {
+      ruleId: "COACH-Z2-001",
+      ruleVersion: "2.0.0",
+      workoutType: "easy",
+      title: "Rebuild Zone 2 share",
+      description:
+        "Recent zone summaries show limited Zone 2 time. Prioritize conversational aerobic work today.",
+      suggestedDistanceKm: { min: 5, max: 9 },
+      suggestedDurationMinutes: { min: 35, max: 55 },
+      suggestedZone: "Zone 2",
+      severity: "low",
+      dataSufficiency: "sufficient",
+      confidence: "medium",
+      evidence,
+      generatedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
   if (ranToday) {
     return {
       ruleId: "COACH-DONE-001",
-      ruleVersion: "1.0.0",
+      ruleVersion: "2.0.0",
       workoutType: "rest",
       title: "You already trained today",
       description:
@@ -155,7 +213,7 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
   if (volume.status === "triggered") {
     return {
       ruleId: "COACH-VOL-001",
-      ruleVersion: "1.0.0",
+      ruleVersion: "2.0.0",
       workoutType: "easy",
       title: "Easy volume day",
       description:
@@ -178,7 +236,7 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
   if (daysSinceLast >= 3) {
     return {
       ruleId: "COACH-EASY-001",
-      ruleVersion: "1.0.0",
+      ruleVersion: "2.0.0",
       workoutType: "easy",
       title: "Ease back in",
       description:
@@ -206,7 +264,7 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
         : { min: 8, max: 12 };
     return {
       ruleId: "COACH-LONG-001",
-      ruleVersion: "1.0.0",
+      ruleVersion: "2.0.0",
       workoutType: "long_run",
       title: "Long run window",
       description:
@@ -222,14 +280,18 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
     };
   }
 
-  if (weekday === 2 || weekday === 4) {
+  // Tempo only when form is not deeply fatigued.
+  if (
+    (weekday === 2 || weekday === 4) &&
+    (formScore == null || formScore >= -8)
+  ) {
     return {
       ruleId: "COACH-TEMPO-001",
-      ruleVersion: "1.0.0",
+      ruleVersion: "2.0.0",
       workoutType: "tempo",
       title: "Optional tempo stimulus",
       description:
-        "Recovery looks stable and volume is controlled. A short tempo block is optional, not required.",
+        "Recovery and STRIDE form look stable enough for a short tempo block. Optional, not required.",
       suggestedDistanceKm: { min: 5, max: 9 },
       suggestedDurationMinutes: { min: 30, max: 50 },
       suggestedZone: "Zone 3–4",
@@ -245,7 +307,7 @@ export async function getDailySuggestion(): Promise<DailySuggestion> {
 
   return {
     ruleId: "COACH-EASY-002",
-    ruleVersion: "1.0.0",
+    ruleVersion: "2.0.0",
     workoutType: "easy",
     title: "Steady easy run",
     description:

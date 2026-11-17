@@ -61,6 +61,32 @@ type Recommendation = {
   dataSufficiency: string;
 };
 
+type CoachToday = {
+  title: string;
+  workoutType: string;
+  description: string;
+  suggestedZone?: string;
+  confidence: string;
+  ruleId: string;
+};
+
+type TrainingLoadSummary = {
+  available: boolean;
+  impulseResponse: {
+    formScore: number;
+    acuteLoad: number;
+    chronicLoad: number;
+  };
+  volume: { last7Days: { strideEstimatedLoad: number } };
+};
+
+type RecoveryOverview = {
+  status: string;
+  label: string;
+  latestDate?: string;
+  recent: Array<{ date: string; bodyBattery?: number }>;
+};
+
 type Vo2 = { available: boolean; points: Array<{ date: string; vo2Max?: number }> };
 type HrTrends = {
   restingHeartRate: Array<{ date: string; restingHeartRateBpm?: number }>;
@@ -79,6 +105,9 @@ export default function OverviewPage() {
   const [sync, setSync] = useState<SyncStatus | null>(null);
   const [dq, setDq] = useState<DataQualitySummary | null>(null);
   const [recs, setRecs] = useState<Recommendation[]>([]);
+  const [coach, setCoach] = useState<CoachToday | null>(null);
+  const [load, setLoad] = useState<TrainingLoadSummary | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryOverview | null>(null);
   const [vo2, setVo2] = useState<Vo2 | null>(null);
   const [hr, setHr] = useState<HrTrends | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,24 +116,40 @@ export default function OverviewPage() {
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    async function loadHome() {
       try {
-        const [me, overview, syncStatus, today, vo2Trend, hrTrends, quality] =
-          await Promise.all([
-            apiGet<{ username: string }>("/api/auth/me"),
-            apiGet<Overview>("/api/v1/analytics/overview"),
-            apiGet<SyncStatus>("/api/v1/sync/status"),
-            apiGet<{ items: Recommendation[] }>("/api/v1/recommendations/today"),
-            apiGet<Vo2>("/api/v1/analytics/vo2max"),
-            apiGet<HrTrends>("/api/v1/analytics/heart-rate"),
-            apiGet<DataQualitySummary>("/api/v1/data-quality/overview"),
-          ]);
+        const [
+          me,
+          overview,
+          syncStatus,
+          today,
+          coachToday,
+          trainingLoad,
+          recoveryOverview,
+          vo2Trend,
+          hrTrends,
+          quality,
+        ] = await Promise.all([
+          apiGet<{ username: string }>("/api/auth/me"),
+          apiGet<Overview>("/api/v1/analytics/overview"),
+          apiGet<SyncStatus>("/api/v1/sync/status"),
+          apiGet<{ items: Recommendation[] }>("/api/v1/recommendations/today"),
+          apiGet<CoachToday>("/api/v1/coach/today"),
+          apiGet<TrainingLoadSummary>("/api/v1/performance/training-load?days=28"),
+          apiGet<RecoveryOverview>("/api/v1/recovery/overview"),
+          apiGet<Vo2>("/api/v1/analytics/vo2max"),
+          apiGet<HrTrends>("/api/v1/analytics/heart-rate"),
+          apiGet<DataQualitySummary>("/api/v1/data-quality/overview"),
+        ]);
         if (cancelled) return;
         setUsername(me.username);
         setData(overview);
         setSync(syncStatus);
         setDq(quality);
         setRecs(today.items);
+        setCoach(coachToday);
+        setLoad(trainingLoad);
+        setRecovery(recoveryOverview);
         setVo2(vo2Trend);
         setHr(hrTrends);
       } catch (err) {
@@ -115,7 +160,7 @@ export default function OverviewPage() {
         if (!cancelled) setLoading(false);
       }
     }
-    void load();
+    void loadHome();
     return () => {
       cancelled = true;
     };
@@ -139,6 +184,9 @@ export default function OverviewPage() {
   const weekDistance =
     data?.weeklyDistanceTrend[data.weeklyDistanceTrend.length - 1]
       ?.distanceMeters ?? 0;
+
+  const latestBodyBattery =
+    recovery?.recent?.find((d) => typeof d.bodyBattery === "number") ?? null;
 
   const milestones = useMemo(() => {
     if (!data?.recentActivities.length) return [];
@@ -225,45 +273,80 @@ export default function OverviewPage() {
       {!loading && !error && data ? (
         <div className="space-y-5">
           <Panel hero>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <p className="section-label">Today</p>
                 <p className="mt-2 text-2xl font-extrabold sm:text-3xl">
-                  {todaysRuns.length
-                    ? `${todaysRuns.length} run${todaysRuns.length > 1 ? "s" : ""} logged`
-                    : "No run logged yet"}
+                  {coach?.title ??
+                    (todaysRuns.length
+                      ? `${todaysRuns.length} run${todaysRuns.length > 1 ? "s" : ""} logged`
+                      : "No run logged yet")}
                 </p>
                 <p className="mt-2 text-sm text-[var(--muted)]">
-                  {todaysRuns.length
-                    ? formatDistance(
-                        todaysRuns.reduce(
-                          (sum, r) => sum + (r.distanceMeters ?? 0),
-                          0
-                        ),
-                        "km"
-                      )
-                    : "Lace up whenever you're ready. Week-to-date is below."}
+                  {coach?.description ??
+                    (todaysRuns.length
+                      ? formatDistance(
+                          todaysRuns.reduce(
+                            (sum, r) => sum + (r.distanceMeters ?? 0),
+                            0
+                          ),
+                          "km"
+                        )
+                      : "Lace up whenever you're ready. Week-to-date is below.")}
                 </p>
+                {coach ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge tone="accent">{coach.workoutType}</Badge>
+                    {coach.suggestedZone ? (
+                      <Badge>{coach.suggestedZone}</Badge>
+                    ) : null}
+                    <Badge>{coach.confidence}</Badge>
+                  </div>
+                ) : null}
               </div>
-              <Badge tone="accent">
-                Synced{" "}
-                {sync?.lastSuccessfulSyncAt
-                  ? new Date(sync.lastSuccessfulSyncAt).toLocaleString()
-                  : "never"}
-              </Badge>
+              <div className="flex flex-col items-end gap-2">
+                <Badge tone="accent">
+                  Synced{" "}
+                  {sync?.lastSuccessfulSyncAt
+                    ? new Date(sync.lastSuccessfulSyncAt).toLocaleString()
+                    : "never"}
+                </Badge>
+                <Link
+                  href="/coach"
+                  className="text-sm font-semibold text-[var(--accent)]"
+                >
+                  Open Coach
+                </Link>
+              </div>
             </div>
           </Panel>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Panel hero className="lg:col-span-1">
-              <p className="section-label">VO2 Max</p>
-              <p className="metric-figure mt-3 text-5xl font-extrabold text-[var(--accent)]">
-                {latestVo2?.vo2Max != null ? latestVo2.vo2Max : "n/a"}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Panel hero>
+              <p className="section-label">Body Battery</p>
+              <p className="metric-figure mt-3 text-4xl font-extrabold text-[var(--accent)]">
+                {latestBodyBattery?.bodyBattery != null
+                  ? latestBodyBattery.bodyBattery
+                  : "n/a"}
               </p>
-              <p className="mt-3 text-sm text-[var(--muted)]">
-                {latestVo2
-                  ? `Latest Garmin value · ${latestVo2.date}`
-                  : "Unavailable until Garmin supplies VO2 Max for your account."}
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                {latestBodyBattery?.bodyBattery != null
+                  ? `Garmin · ${latestBodyBattery.date}`
+                  : "Unavailable until health sync lands Body Battery."}
+              </p>
+            </Panel>
+
+            <Panel>
+              <p className="section-label">STRIDE form</p>
+              <p className="metric-figure mt-3 text-4xl font-extrabold">
+                {load?.available
+                  ? load.impulseResponse.formScore.toFixed(1)
+                  : "n/a"}
+              </p>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                {load?.available
+                  ? `CTL ${load.impulseResponse.chronicLoad.toFixed(0)} · ATL ${load.impulseResponse.acuteLoad.toFixed(0)} · 7d load ${load.volume.last7Days.strideEstimatedLoad}`
+                  : "Needs zone-tagged runs for Edwards load."}
               </p>
             </Panel>
 
@@ -287,29 +370,26 @@ export default function OverviewPage() {
               <p className="mt-2 text-sm text-[var(--muted)]">
                 {latestRhr?.restingHeartRateBpm != null
                   ? `bpm · ${latestRhr.date}`
-                  : "Unavailable until health sync provides resting HR."}
+                  : recovery?.label ??
+                    "Unavailable until health sync provides resting HR."}
               </p>
             </Panel>
           </div>
 
-          <Panel>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="section-label">Today’s game plan</p>
-                <h2 className="mt-1 text-lg font-bold">Recommendation</h2>
+          {recs.length > 0 ? (
+            <Panel>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="section-label">Rule alerts</p>
+                  <h2 className="mt-1 text-lg font-bold">Recommendation</h2>
+                </div>
+                <Link
+                  href="/coach"
+                  className="text-sm font-semibold text-[var(--accent)]"
+                >
+                  See all
+                </Link>
               </div>
-              <Link
-                href="/coach"
-                className="text-sm font-semibold text-[var(--accent)]"
-              >
-                See all
-              </Link>
-            </div>
-            {recs.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                No active recommendations. Evaluate rules when you have enough history.
-              </p>
-            ) : (
               <div className="space-y-3">
                 {recs.slice(0, 1).map((r) => (
                   <div
@@ -324,19 +404,48 @@ export default function OverviewPage() {
                     <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
                       {r.description}
                     </p>
-                    <ul className="mt-3 space-y-1 text-sm">
-                      {r.evidence.map((e, idx) => (
-                        <li key={`${e.metric}-${idx}`} className="metric-figure">
-                          {e.metric}: {String(e.value)}
-                          {e.unit ? ` ${e.unit}` : ""}
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                 ))}
               </div>
-            )}
-          </Panel>
+            </Panel>
+          ) : null}
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Panel hero className="lg:col-span-1">
+              <p className="section-label">VO2 Max</p>
+              <p className="metric-figure mt-3 text-5xl font-extrabold text-[var(--accent)]">
+                {latestVo2?.vo2Max != null ? latestVo2.vo2Max : "n/a"}
+              </p>
+              <p className="mt-3 text-sm text-[var(--muted)]">
+                {latestVo2
+                  ? `Latest Garmin value · ${latestVo2.date}`
+                  : "Unavailable until Garmin supplies VO2 Max for your account."}
+              </p>
+            </Panel>
+            <Panel className="lg:col-span-2">
+              <p className="section-label">Shortcuts</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href="/activities/compare"
+                  className="pressable inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border)] px-4 text-sm font-semibold"
+                >
+                  Compare runs
+                </Link>
+                <Link
+                  href="/journey/report"
+                  className="pressable inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border)] px-4 text-sm font-semibold"
+                >
+                  Weekly report
+                </Link>
+                <Link
+                  href="/goals-races"
+                  className="pressable inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border)] px-4 text-sm font-semibold"
+                >
+                  Race predictor
+                </Link>
+              </div>
+            </Panel>
+          </div>
 
           <div className="grid gap-4 lg:grid-cols-5">
             <Panel className="lg:col-span-3">

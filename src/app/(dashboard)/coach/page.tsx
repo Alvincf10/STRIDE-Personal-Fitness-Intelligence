@@ -73,6 +73,8 @@ const EVIDENCE_LABELS: Record<string, string> = {
   currentKm: "This week",
   previousKm: "Last week",
   changePercent: "Week-over-week change",
+  formScore: "Form (CTL−ATL)",
+  zone2Percent14d: "Zone 2 share (14d)",
 };
 
 const SKIP_EVIDENCE = new Set(["currentKm", "previousKm"]); // duplicates of week totals

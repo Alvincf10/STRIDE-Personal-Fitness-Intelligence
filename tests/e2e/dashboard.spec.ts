@@ -84,7 +84,7 @@ test.describe("STRIDE dashboard", () => {
     await openSecondary(page, "Data Quality");
     await expect(page).toHaveURL(/\/data-quality/);
     await expect(
-      page.getByRole("heading", { name: "What Garmin actually gave us" })
+      page.getByRole("heading", { name: "Isi gudang data Garmin" })
     ).toBeVisible();
 
     await openSecondary(page, "Settings & Garmin");

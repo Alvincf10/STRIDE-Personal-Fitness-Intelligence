@@ -1,6 +1,8 @@
 import { connectMongo } from "@/lib/database/mongoose";
 import { metersToKm } from "@/lib/utils/units";
 import { Activity, FitnessGoal } from "@/models";
+import { getAerobicDecoupling } from "@/modules/aerobic-decoupling/service";
+import { getTrainingLoad } from "@/modules/training-load/service";
 
 const DISTANCE_PRESETS: Record<string, number> = {
   "1k": 1000,
@@ -76,9 +78,11 @@ export async function getGoalProgress() {
   const goals = await listGoals();
   const now = new Date();
   const from28 = new Date(now.getTime() - 28 * 86400000);
-  const runs = await Activity.find({ activityType: "running" })
-    .sort({ startedAt: -1 })
-    .lean();
+  const [runs, load, decoupling] = await Promise.all([
+    Activity.find({ activityType: "running" }).sort({ startedAt: -1 }).lean(),
+    getTrainingLoad({ days: 42 }),
+    getAerobicDecoupling({ days: 28 }),
+  ]);
   const recent = runs.filter((r) => new Date(r.startedAt) >= from28);
   const volume28dKm = metersToKm(
     recent.reduce((sum, r) => sum + (r.distanceMeters ?? 0), 0)
@@ -86,6 +90,8 @@ export async function getGoalProgress() {
   const runDays28 = new Set(
     recent.map((r) => new Date(r.startedAt).toISOString().slice(0, 10))
   ).size;
+  const formScore = load.available ? load.impulseResponse.formScore : null;
+  const latestDecoupling = decoupling.sessions.find((s) => s.eligible) ?? null;
 
   return goals.map((goal) => {
     const target = goal.targetDistanceMeters;
@@ -163,23 +169,64 @@ export async function getGoalProgress() {
         status: runDays28 >= 8 ? "ok" : runDays28 >= 3 ? "weak" : "missing",
         value: `${runDays28} days`,
       },
+      {
+        id: "training_form",
+        label: "Training form",
+        status:
+          formScore == null
+            ? "missing"
+            : formScore >= -8
+              ? "ok"
+              : formScore >= -15
+                ? "weak"
+                : "missing",
+        value:
+          formScore == null
+            ? "No STRIDE load yet"
+            : `Form ${formScore.toFixed(1)} (CTL−ATL)`,
+      },
+      {
+        id: "decoupling",
+        label: "Recent aerobic decoupling",
+        status:
+          latestDecoupling?.decouplingPercent == null
+            ? "missing"
+            : latestDecoupling.decouplingPercent <= 5
+              ? "ok"
+              : latestDecoupling.decouplingPercent <= 10
+                ? "weak"
+                : "missing",
+        value:
+          latestDecoupling?.decouplingPercent == null
+            ? "No eligible sample session"
+            : `${latestDecoupling.decouplingPercent}% on latest eligible run`,
+      },
     ];
 
     const okCount = factors.filter((f) => f.status === "ok").length;
     const missingCount = factors.filter((f) => f.status === "missing").length;
     let confidence: "high" | "medium" | "low" | "insufficient" = "insufficient";
-    if (!evidenceEnough || missingCount >= 3) {
+    if (!evidenceEnough || missingCount >= 4) {
       confidence = "insufficient";
-    } else if (okCount >= 3 && coverage >= 0.9) {
+    } else if (okCount >= 4 && coverage >= 0.9) {
       confidence = "high";
-    } else if (okCount >= 2 || coverage >= 0.75) {
+    } else if (okCount >= 3 || coverage >= 0.75) {
       confidence = "medium";
     } else {
       confidence = "low";
     }
 
+    // Fatigue / high decoupling widens the estimate band.
+    const fatiguePad =
+      (formScore != null && formScore < -12 ? 0.03 : 0) +
+      (latestDecoupling?.decouplingPercent != null &&
+      latestDecoupling.decouplingPercent > 8
+        ? 0.02
+        : 0);
+
     const rangePad =
-      confidence === "high" ? 0.04 : confidence === "medium" ? 0.06 : 0.1;
+      (confidence === "high" ? 0.04 : confidence === "medium" ? 0.06 : 0.1) +
+      fatiguePad;
 
     return {
       goal,
@@ -194,7 +241,9 @@ export async function getGoalProgress() {
               high: Math.round(estimateSeconds * (1 + rangePad)),
             }
           : null,
-        method,
+        method: method
+          ? `${method}+load_decoupling_context`
+          : method,
         confidence,
         factors,
         evidence: {

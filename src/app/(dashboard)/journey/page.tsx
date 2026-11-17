@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Badge,
+  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -102,6 +103,11 @@ export default function JourneyPage() {
         eyebrow="My Journey"
         title="Progress you can feel"
         description="Streaks, monthly wrapped, heatmap, and achievements from real activity history."
+        actions={
+          <Link href="/journey/report">
+            <Button variant="ghost">Weekly report</Button>
+          </Link>
+        }
       />
       {loading ? <LoadingState /> : null}
       {error ? <ErrorState message={error} /> : null}

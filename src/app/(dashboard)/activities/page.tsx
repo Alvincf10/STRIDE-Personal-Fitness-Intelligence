@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { RunCard } from "@/components/running/run-card";
 import {
+  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -53,6 +55,11 @@ export default function RunningPage() {
         eyebrow="My Activities"
         title="Every step, saved"
         description="Distance, pace, time, and heart rate from your Garmin activities. Easy / moderate / intense labels use average HR when available."
+        actions={
+          <Link href="/activities/compare">
+            <Button variant="ghost">Compare runs</Button>
+          </Link>
+        }
       />
       {loading ? <LoadingState label="Loading your runs…" /> : null}
       {error ? <ErrorState message={error} /> : null}

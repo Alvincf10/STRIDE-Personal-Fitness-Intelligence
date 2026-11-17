@@ -146,7 +146,16 @@ export default function ActivityDetailPage() {
         byteSize?: number;
         checksumSha256?: string;
         sanitizedError?: string;
+        parse?: {
+          recordCount?: number;
+          routePoints?: number;
+          lapCount?: number;
+          status?: string;
+        };
       }>("/api/v1/fit/download", "POST", { activityId: params.id });
+      const parseBit = artifact.parse
+        ? ` · parsed ${artifact.parse.recordCount ?? 0} records / ${artifact.parse.routePoints ?? 0} route pts`
+        : "";
       setFitNote(
         artifact.sanitizedError
           ? artifact.sanitizedError
@@ -156,8 +165,12 @@ export default function ActivityDetailPage() {
               artifact.checksumSha256
                 ? ` · sha256 ${artifact.checksumSha256.slice(0, 12)}…`
                 : ""
-            }`
+            }${parseBit}`
       );
+      const refreshed = await apiGet<DetailResponse>(
+        `/api/v1/activities/${params.id}`
+      );
+      setData(refreshed);
     } catch (err) {
       setFitNote(err instanceof Error ? err.message : "FIT download failed");
     } finally {

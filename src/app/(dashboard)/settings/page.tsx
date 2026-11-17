@@ -129,12 +129,47 @@ export default function SettingsPage() {
     setError(null);
     try {
       await apiSend("/api/v1/sync/activities", "POST");
-      setMessage("Activity sync queued.");
+      setMessage(
+        "Activity sync queued (all Garmin activity types for multi-sport)."
+      );
       setTimeout(() => {
         void refresh();
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
+    }
+  }
+
+  async function syncHealth() {
+    setMessage(null);
+    setError(null);
+    try {
+      await apiSend("/api/v1/sync/health", "POST");
+      setMessage("Health sync queued (Body Battery, stress, sleep, steps).");
+      setTimeout(() => {
+        void refresh();
+      }, 1200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Health sync failed");
+    }
+  }
+
+  async function parseStoredFits() {
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await apiSend<{
+        attempted: number;
+        parsed: number;
+        failed: number;
+      }>("/api/v1/fit/parse", "POST", { all: true, limit: 50 });
+      setMessage(
+        `FIT parse: ${result.parsed}/${result.attempted} ok${
+          result.failed ? ` · ${result.failed} failed` : ""
+        }.`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "FIT parse failed");
     }
   }
 
@@ -213,6 +248,12 @@ export default function SettingsPage() {
                 </Button>
                 <Button type="button" variant="ghost" onClick={syncNow}>
                   Sync activities
+                </Button>
+                <Button type="button" variant="ghost" onClick={syncHealth}>
+                  Sync health
+                </Button>
+                <Button type="button" variant="ghost" onClick={parseStoredFits}>
+                  Parse stored FITs
                 </Button>
                 <Button type="button" variant="danger" onClick={disconnect}>
                   Disconnect

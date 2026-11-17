@@ -14,6 +14,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/icon") ||
     pathname.startsWith("/apple-icon") ||
     pathname.startsWith("/manifest") ||
+    pathname === "/sw.js" ||
     pathname.startsWith("/stride-") ||
     /\.(?:svg|ico|png|jpg|jpeg|webp|gif|txt|webmanifest)$/i.test(pathname)
   ) {
