@@ -1,0 +1,25 @@
+{
+  "name": "STRIDE",
+  "short_name": "STRIDE",
+  "description": "Personal fitness intelligence companion for your Garmin data.",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07140F",
+  "theme_color": "#07140F",
+  "icons": [
+    {
+      "src": "/stride-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-icon",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

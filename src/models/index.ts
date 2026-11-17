@@ -1,0 +1,14 @@
+export { UserSettings } from "./UserSettings";
+export { GarminConnection } from "./GarminConnection";
+export { Activity } from "./Activity";
+export { ActivityDetail } from "./ActivityDetail";
+export { DailyMetrics } from "./DailyMetrics";
+export { HrZoneSettings } from "./HrZoneSettings";
+export { AnalyticsSnapshot } from "./AnalyticsSnapshot";
+export { Recommendation } from "./Recommendation";
+export { SyncLog } from "./SyncLog";
+export { FeatureCapability } from "./FeatureCapability";
+export { FitnessGoal } from "./FitnessGoal";
+export { PersonalBaseline } from "./PersonalBaseline";
+export { UserAchievement } from "./UserAchievement";
+export { FitArtifact } from "./FitArtifact";

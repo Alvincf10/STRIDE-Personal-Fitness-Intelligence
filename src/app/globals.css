@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #07140f;
+  --surface: #0e1c16;
+  --surface-raised: #15261e;
+  --border: #243c31;
+  --text: #ecf5ef;
+  --muted: #8fa89a;
+  --accent: #b8ff3c;
+  --soft-green: #3d8f6a;
+  --warning: #f0b429;
+  --danger: #ff6b6b;
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
+  --background: var(--ink);
+  --foreground: var(--text);
+  --glow: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-soft-green: var(--soft-green);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-jakarta);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, var(--glow), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--soft-green) 16%, transparent), transparent 50%),
+    var(--ink);
+  color: var(--text);
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 767px) {
+  body {
+    background:
+      radial-gradient(700px 360px at 0% -5%, var(--glow), transparent 55%),
+      var(--ink);
+  }
+
+  .card-surface {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  }
+
+  .card-surface:hover {
+    border-color: var(--border);
+  }
+
+  .section-label {
+    font-size: 0.6875rem;
+  }
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.metric-figure {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.card-surface {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--surface-raised) 88%, var(--accent) 12%) 0%,
+    var(--surface) 45%,
+    var(--surface) 100%
+  );
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.card-surface:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.card-hero {
+  background:
+    radial-gradient(800px 280px at 100% 0%, var(--glow), transparent 60%),
+    linear-gradient(145deg, #163024 0%, var(--surface) 55%, #0b1812 100%);
+}
+
+.pressable:active {
+  transform: scale(0.985);
+}
+
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

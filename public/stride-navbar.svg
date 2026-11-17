@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="96" viewBox="0 0 420 96" role="img" aria-labelledby="title">
+  <title id="title">STRIDE</title>
+  <defs>
+    <linearGradient id="strideNavLime" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#D4FF6A"/>
+      <stop offset="1" stop-color="#B8FF3C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4 8)" fill="url(#strideNavLime)">
+    <path d="M62 5H19C11 5 6 9 2 17L0 21H48L39 30H8L0 43H39C48 43 55 39 60 31L68 18C72 10 69 5 62 5Z"/>
+    <path d="M7 49H50L59 40H27L35 32H67L74 19H37C28 19 21 23 16 31L8 44C4 51 4 56 7 60H50L58 49H7Z" opacity=".98"/>
+  </g>
+  <text x="100" y="68" fill="#ECF5EF" font-family="'Plus Jakarta Sans', Arial, Helvetica, sans-serif" font-size="54" font-weight="800" font-style="italic" letter-spacing="2">STRIDE</text>
+</svg>
